@@ -39,6 +39,10 @@ public static class SerilogSetup
             // 그 뒤의 WithProperty 기본값들은 AddPropertyIfAbsent 로 동작하므로 덮어쓰지 않는다.
             .Enrich.FromLogContext()
 
+            // 예약 필드를 엉뚱한 타입으로 덮어쓴 프레임워크 로그를 먼저 걸러낸다.
+            // 기본값 채우기(아래 WithProperty)보다 앞에 와야 걸러낸 자리를 다시 메울 수 있다.
+            .Enrich.With(new SchemaGuardEnricher())
+
             .Enrich.WithProperty(LogSchema.Service, LogSchema.ServiceName)
             .Enrich.WithProperty(LogSchema.Env, LogSchema.EnvName)
 

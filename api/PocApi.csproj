@@ -13,7 +13,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- ★ true 로 두면 안 된다.
+         Microsoft.Data.SqlClient 가 ICU 를 요구해서
+         "Globalization Invariant Mode is not supported." 로 연결이 전부 실패한다.
+         (증상은 DB 기동 대기 무한 반복으로 나타나 원인 찾기가 은근히 어렵다) -->
+    <InvariantGlobalization>false</InvariantGlobalization>
     <RootNamespace>PocApi</RootNamespace>
   </PropertyGroup>
 

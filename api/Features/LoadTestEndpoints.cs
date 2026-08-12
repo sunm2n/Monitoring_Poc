@@ -21,6 +21,25 @@ public static class LoadTestEndpoints
         LogSchema.Events.ProductPurchase,
     ];
 
+    /// <summary>
+    /// 예외를 한 번 던졌다 잡아서 실제 스택트레이스가 붙은 인스턴스를 만든다.
+    ///
+    /// <c>new Exception(...)</c> 만 하면 StackTrace 가 null 이라 error.stack_trace 가
+    /// 예외 타입명 한 줄로 끝난다. FLS 데모에서 "숨겨서 안 보이는 것"과
+    /// "원래 별 내용이 없던 것"을 구분할 수 없으면 시연이 설득력을 잃는다.
+    /// </summary>
+    private static T Thrown<T>(T exception) where T : Exception
+    {
+        try
+        {
+            throw exception;
+        }
+        catch (T caught)
+        {
+            return caught;
+        }
+    }
+
     public static void MapLoadTestEndpoints(this WebApplication app)
     {
         app.MapPost("/api/load-test", (int? count, HttpContext ctx) =>
@@ -71,7 +90,7 @@ public static class LoadTestEndpoints
                         @event,
                         status == 409 ? "부하 생성 - 재고 부족" : "부하 생성 - 대상 없음",
                         fields,
-                        status == 409 ? new InsufficientStockException(quantity, 0) : null);
+                        status == 409 ? Thrown(new InsufficientStockException(quantity, 0)) : null);
 
                     failure++;
                 }
@@ -80,7 +99,7 @@ public static class LoadTestEndpoints
                     // 5% 서버 장애 (500) — 스택트레이스가 들어 있는 문서를 확보한다
                     fields[LogSchema.Http] = AppLog.HttpFields("POST", $"/api/products/{productId}", 500);
 
-                    AppLog.Fault(@event, "부하 생성 - 서버 오류", new SimulatedDatabaseException(), fields);
+                    AppLog.Fault(@event, "부하 생성 - 서버 오류", Thrown(new SimulatedDatabaseException()), fields);
                     fault++;
                 }
             }
