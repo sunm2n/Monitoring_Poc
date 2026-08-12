@@ -132,7 +132,7 @@ mkdir -p docs
   echo ""
   echo "힙 최대 \`${HEAP_MAX}\` / 속도제한 \`$([ "$RATE" = "0" ] && echo unlimited || echo "$RATE")\` / 날짜분산 \`${DAYS_BACK}일\`"
   echo ""
-  echo "| 단계 | 생성 | 색인 | 유실 | 유실률 | 생성속도 | 색인소요 | 파이프라인 처리량 | 문서당 | 인덱스 총량 | 힙 |"
+  echo "| 단계 | 생성 | 색인 | 유실 | 유실률 | 생성속도 | 총 소요 | 실효 처리량 | 문서당 | 인덱스 총량 | 힙 |"
   echo "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
 } >> "$REPORT"
 
@@ -163,7 +163,11 @@ for STAGE in "${STAGES[@]}"; do
 
   LOST=$((GEN_COUNT - INDEXED))
   LOSS_PCT=$(python3 -c "print(f'{${LOST}/${GEN_COUNT}*100:.2f}')")
-  PIPE_RATE=$(python3 -c "print(int(${INDEXED}/max(${DRAIN_SEC},0.001)))")
+  # ⚠️ 처리량은 반드시 (생성시간 + 대기시간) 으로 나눠야 한다.
+  #    대기시간만으로 나누면 "생성 중에 이미 색인된 분량"이 분자에 남아 있어
+  #    실제보다 2~7배 부풀려진다. (초판 지표가 이 오류를 갖고 있었다)
+  TOTAL_SEC=$(python3 -c "print(f'{${GEN_SEC}+${DRAIN_SEC}:.1f}')")
+  PIPE_RATE=$(python3 -c "print(int(${INDEXED}/max(${TOTAL_SEC},0.001)))")
 
   info "색인: ${INDEXED}건 / 유실 ${LOST}건 (${LOSS_PCT}%)"
   info "파이프라인 처리량: 약 ${PIPE_RATE}건/초"
@@ -186,7 +190,7 @@ for STAGE in "${STAGES[@]}"; do
   {
     printf '| %s | %s | %s | %s | %s%% | %s/s | %ss | %s/s | %sB | %s | %s%% |\n' \
       "$STAGE" "$GEN_COUNT" "$INDEXED" "$LOST" "$LOSS_PCT" "$GEN_RATE" \
-      "$DRAIN_SEC" "$PIPE_RATE" "$PER_DOC" "$SIZE_H" "$HEAP_PCT"
+      "$TOTAL_SEC" "$PIPE_RATE" "$PER_DOC" "$SIZE_H" "$HEAP_PCT"
   } >> "$REPORT"
 done
 
