@@ -1,0 +1,56 @@
+{
+  "index_patterns": ["app-logs-*"],
+  "priority": 100,
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "strings_as_keyword": {
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "level": { "type": "keyword" },
+        "service": { "type": "keyword" },
+        "env": { "type": "keyword" },
+        "company_id": { "type": "keyword" },
+        "user_id": { "type": "keyword" },
+        "trace_id": { "type": "keyword" },
+        "event": { "type": "keyword" },
+        "outcome": { "type": "keyword" },
+        "message": { "type": "text" },
+        "http": {
+          "properties": {
+            "method": { "type": "keyword" },
+            "path": { "type": "keyword" },
+            "status_code": { "type": "integer" }
+          }
+        },
+        "duration_ms": { "type": "long" },
+        "product_id": { "type": "integer" },
+        "quantity": { "type": "integer" },
+        "amount": { "type": "long" },
+        "error": {
+          "properties": {
+            "type": { "type": "keyword" },
+            "message": { "type": "text" },
+            "stack_trace": { "type": "text" }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "app-logs-* 필드 스키마. docs/log-schema.md 2장(필드 정의) 그대로 매핑. 이 문서를 고치면 여기도 함께 고칠 것."
+  }
+}

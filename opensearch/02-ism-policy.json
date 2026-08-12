@@ -1,0 +1,33 @@
+{
+  "policy": {
+    "description": "app-logs-* 인덱스를 7일 보관 후 자동 삭제한다. Fluent Bit이 Logstash_Format으로 하루에 하나씩 app-logs-YYYY.MM.DD 인덱스를 직접 생성하며 rollover_alias를 쓰지 않으므로, ISM의 rollover 액션(별칭 필요)은 사용하지 않고 age 기반 삭제만 수행한다.",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "7d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ],
+        "transitions": []
+      }
+    ],
+    "ism_template": {
+      "index_patterns": ["app-logs-*"],
+      "priority": 100
+    }
+  }
+}
