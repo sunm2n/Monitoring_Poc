@@ -157,6 +157,25 @@ Loki 데이터소스는 프로비저닝으로 미리 꽂혀 있다.
 
 기본 구성으로 돌아가려면 오버레이 없이 `docker compose up -d` 하면 된다.
 
+## 대용량 검증
+
+```bash
+RESET=1 ./scripts/volume-test.sh 100000 1000000 5000000
+```
+
+단계적으로 올려 깨지는 지점을 찾는다. 측정 결과와 원인 분석은
+**[docs/volume-test.md](docs/volume-test.md)** 에 있다. 요약하면:
+
+| 단계 | 유실률 |
+|---|---|
+| 10만 / 100만 | **0%** |
+| 500만 | **34.65%** |
+
+유실은 백엔드가 못 받아서가 아니라 **수집기가 429 백프레셔를 기다리지 않고 청크를 버려서**
+생겼다. 미해결 과제는 저장소 이슈로 등록해 뒀다.
+
+문서당 **224 bytes** 로 수렴하고, **DLS 오버헤드는 사실상 0** 이었다 (436만 건 기준 47ms → 50ms).
+
 ## 검증
 
 검증 절차와 실측 결과는 **[docs/verification.md](docs/verification.md)** 에 있다.
@@ -198,11 +217,14 @@ Loki 데이터소스는 프로비저닝으로 미리 꽂혀 있다.
 │   ├── 01-index-template.json    # company_id 를 keyword 로 고정
 │   ├── 02-ism-policy.json        # 7일 후 삭제
 │   └── setup-security.sh         # 테넌트·역할·사용자 (멱등, POSIX sh)
-├── scripts/verify.sh             # 주장 1~4 자동 검증
+├── scripts/
+│   ├── verify.sh                 # 주장 1~4 자동 검증
+│   └── volume-test.sh            # 대용량 단계별 측정 (유실률·처리량·용량)
 └── docs/
     ├── log-schema.md             # ★ 로그 스키마 명세
     ├── verification.md           # 검증 절차와 실측 결과
-    └── loki-comparison.md        # OpenSearch vs Loki 실측 비교
+    ├── loki-comparison.md        # OpenSearch vs Loki 실측 비교
+    └── volume-test.md            # 대용량 측정 결과 + 원인 분석
 ```
 
 ---

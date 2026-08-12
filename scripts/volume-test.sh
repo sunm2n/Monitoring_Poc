@@ -97,15 +97,15 @@ drain() {
 
     if [ "$n" = "$prev" ]; then
       same=$((same+1))
-      # 15초간 증가가 없으면 파이프라인이 멈춘 것으로 본다 (= 유실 확정)
-      [ "$same" -ge 5 ] && { echo "$n"; return; }
+      # 10초간 증가가 없으면 파이프라인이 멈춘 것으로 본다 (= 유실 확정)
+      [ "$same" -ge 10 ] && { echo "$n"; return; }
     else
       same=0
     fi
 
     prev="$n"
-    sleep 3
-    elapsed=$((elapsed+3))
+    sleep 1
+    elapsed=$((elapsed+1))
   done
 
   echo "${n:-0}"
@@ -169,6 +169,11 @@ for STAGE in "${STAGES[@]}"; do
   info "파이프라인 처리량: 약 ${PIPE_RATE}건/초"
 
   # ── 용량 · 힙 ───────────────────────────────────────────────────────────
+  # ⚠️ flush 를 강제하지 않으면 store.size 가 갱신되지 않아 "문서당 41 bytes" 같은
+  #    불가능한 값이 나온다. 세그먼트가 아직 디스크에 안 내려간 상태의 수치이기 때문이다.
+  osq "$ADMIN" "/app-logs-*/_flush" >/dev/null
+  sleep 3
+  osq "$ADMIN" "/app-logs-*/_refresh" >/dev/null
   SIZE_B=$(osq "$ADMIN" "/_cat/indices/app-logs-*?h=store.size&bytes=b" | awk '{s+=$1} END {print s+0}')
   DOCS_ALL=$(osq "$ADMIN" "/_cat/indices/app-logs-*?h=docs.count" | awk '{s+=$1} END {print s+0}')
   PER_DOC=$(python3 -c "print(f'{${SIZE_B}/max(${DOCS_ALL},1):.0f}')")
