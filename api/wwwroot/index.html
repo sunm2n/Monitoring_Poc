@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>OpenSearch 로그 수집 PoC</title>
+</head>
+<body style="font-family: -apple-system, 'Malgun Gothic', sans-serif; margin: 20px; max-width: 900px;">
+
+  <!-- ================================================================
+       상단 요약: 이 PoC가 뭘 증명하려는 것인지 3줄로.
+       디자인 없음 - 순수 텍스트 + 인라인 style 만 사용.
+       ================================================================ -->
+  <h1 style="font-size: 20px; margin-bottom: 4px;">OpenSearch 로그 수집 PoC</h1>
+  <ul style="font-size: 14px; line-height: 1.6; margin-top: 4px;">
+    <li>API가 찍는 표준 JSON 로그(company_id, trace_id 포함)가 Fluent Bit를 거쳐 OpenSearch에 그대로 쌓이는지 확인한다.</li>
+    <li>company_id 기반 DLS(문서 수준 보안)로 회사별 로그가 서로 격리되어 보이는지 실증한다.</li>
+    <li>구매/삭제 같이 법적 보존이 필요한 기록은 로그가 아니라 MSSQL AuditLogs 테이블로 별도 적재됨을 실증한다.</li>
+  </ul>
+  <p style="font-size: 13px;">
+    OpenSearch Dashboards:
+    <a href="http://localhost:5601" target="_blank" rel="noopener">http://localhost:5601</a>
+  </p>
+
+  <hr>
+
+  <!-- ================================================================
+       회사 / 사용자 컨텍스트 선택
+       - 모든 요청에 X-Company-Id / X-User-Id 헤더로 실려 나간다.
+       ================================================================ -->
+  <div style="margin-bottom: 16px;">
+    <label>
+      회사 선택:
+      <select id="companyId">
+        <option value="company1">company1</option>
+        <option value="company2">company2</option>
+      </select>
+    </label>
+    &nbsp;&nbsp;
+    <label>
+      사용자:
+      <input type="text" id="userId" value="user-001" size="12">
+    </label>
+  </div>
+
+  <hr>
+
+  <!-- ================================================================
+       시나리오 버튼들
+       ================================================================ -->
+  <table style="border-collapse: collapse; margin-bottom: 8px;">
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioProductListOk()">상품 조회 - 성공</button></td>
+      <td style="padding: 4px;"><button onclick="scenarioProductGetFail()">상품 조회 - 실패(없는 ID)</button></td>
+    </tr>
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioProductCreateOk()">상품 등록 - 성공</button></td>
+      <td style="padding: 4px;"><button onclick="scenarioProductCreateFail()">상품 등록 - 실패(유효성)</button></td>
+    </tr>
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioProductUpdateOk()">상품 수정 - 성공</button></td>
+      <td style="padding: 4px;"><button onclick="scenarioProductUpdateFail()">상품 수정 - 실패(없는 ID)</button></td>
+    </tr>
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioProductDeleteOk()">상품 삭제 - 성공</button></td>
+      <td style="padding: 4px;"><button onclick="scenarioProductDeleteFail()">상품 삭제 - 실패(이미 삭제)</button></td>
+    </tr>
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioPurchaseOk()">상품 구매 - 성공</button></td>
+      <td style="padding: 4px;"><button onclick="scenarioPurchaseFailStock()">구매 실패 - 재고부족(409)</button></td>
+    </tr>
+    <tr>
+      <td style="padding: 4px;"><button onclick="scenarioPurchaseFailServer()">구매 실패 - 서버오류(500)</button></td>
+      <td></td>
+    </tr>
+  </table>
+
+  <hr>
+
+  <div style="margin-bottom: 8px;">
+    <button onclick="scenarioLoadTest()">부하 생성 - 랜덤 100건</button>
+    &nbsp;&nbsp;
+    <button onclick="scenarioAuditLogs()">감사로그 조회 (MSSQL)</button>
+    &nbsp;&nbsp;
+    <button onclick="clearOutput()">결과 지우기</button>
+  </div>
+
+  <hr>
+
+  <h3 style="font-size: 14px; margin-bottom: 4px;">응답 결과</h3>
+  <pre id="output" style="background: #f5f5f5; border: 1px solid #ccc; padding: 10px; font-size: 12px; max-height: 500px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></pre>
+
+<script>
+  // -----------------------------------------------------------------
+  // 상태: "상품 삭제 - 실패" 시나리오가 참조할, 방금 삭제한 상품 id.
+  // "삭제 성공" 버튼을 먼저 눌러야 값이 채워진다.
+  // -----------------------------------------------------------------
+  var lastDeletedProductId = null;
+
+  function getCompanyId() {
+    return document.getElementById('companyId').value;
+  }
+  function getUserId() {
+    return document.getElementById('userId').value || 'anonymous';
+  }
+
+  // -----------------------------------------------------------------
+  // 공통 요청 헬퍼
+  // - 모든 요청에 X-Company-Id / X-User-Id 헤더를 붙인다.
+  // - 요청/응답을 <pre id="output"> 맨 위에 누적 출력한다 (최신이 위).
+  // - 실패(4xx/5xx) 여부에 따라 인라인 style 색만 다르게 준다 (외부 CSS 없음).
+  // -----------------------------------------------------------------
+  function callApi(method, path, body) {
+    var headers = {
+      'X-Company-Id': getCompanyId(),
+      'X-User-Id': getUserId()
+    };
+    var options = { method: method, headers: headers };
+
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+
+    return fetch(path, options).then(function (res) {
+      return res.text().then(function (text) {
+        var parsed;
+        try { parsed = JSON.parse(text); } catch (e) { parsed = text; }
+        logResult(method, path, res.status, parsed);
+        return { status: res.status, body: parsed };
+      });
+    }).catch(function (err) {
+      logResult(method, path, 'ERR', String(err));
+      throw err;
+    });
+  }
+
+  function logResult(method, path, status, body) {
+    var ok = typeof status === 'number' && status >= 200 && status < 300;
+    var color = ok ? '#0a7d00' : '#c00000';
+    var bodyText;
+    try { bodyText = JSON.stringify(body, null, 2); } catch (e) { bodyText = String(body); }
+
+    var time = new Date().toISOString();
+    var line =
+      '[' + time + '] ' + method + ' ' + path + '  ->  ' + status + '\n' + bodyText + '\n' +
+      '----------------------------------------------------------------\n';
+
+    var out = document.getElementById('output');
+    var span = document.createElement('span');
+    span.style.color = color;
+    span.style.display = 'block';
+    span.textContent = line;
+    out.insertBefore(span, out.firstChild); // 최신이 위로 오도록 맨 앞에 삽입
+  }
+
+  function clearOutput() {
+    document.getElementById('output').innerHTML = '';
+  }
+
+  // -----------------------------------------------------------------
+  // 시나리오 구현
+  // API 계약(엔드포인트/바디/기대 상태코드)은 문서에서 확정된 것을 그대로 따른다.
+  // -----------------------------------------------------------------
+
+  // 상품 조회 - 성공
+  function scenarioProductListOk() {
+    callApi('GET', '/api/products');
+  }
+
+  // 상품 조회 - 실패 (없는 ID -> 404)
+  function scenarioProductGetFail() {
+    callApi('GET', '/api/products/999999');
+  }
+
+  // 상품 등록 - 성공 (-> 201)
+  function scenarioProductCreateOk() {
+    callApi('POST', '/api/products', { name: '테스트 상품', price: 10000, stock: 10 });
+  }
+
+  // 상품 등록 - 실패 (유효성 위반 -> 400). 의도적으로 잘못된 값을 보낸다.
+  function scenarioProductCreateFail() {
+    callApi('POST', '/api/products', { name: '', price: -1, stock: -5 });
+  }
+
+  // 상품 수정 - 성공: 먼저 목록을 조회해 첫 상품 id를 얻은 뒤 수정한다 (-> 200)
+  function scenarioProductUpdateOk() {
+    callApi('GET', '/api/products').then(function (res) {
+      var list = res.body;
+      if (!Array.isArray(list) || list.length === 0) {
+        logResult('PUT', '(사전조회 실패: 상품 없음)', 'ERR', '상품 목록이 비어 있어 수정할 대상이 없습니다.');
+        return;
+      }
+      var target = list[0];
+      callApi('PUT', '/api/products/' + target.productId, { name: '수정된 상품', price: 12000, stock: 15 });
+    });
+  }
+
+  // 상품 수정 - 실패 (없는 ID -> 404)
+  function scenarioProductUpdateFail() {
+    callApi('PUT', '/api/products/999999', { name: '수정된 상품', price: 12000, stock: 15 });
+  }
+
+  // 상품 삭제 - 성공: 하나 만든 뒤 그 id를 삭제 (-> 204). 삭제 실패 시나리오를 위해 id를 기억해 둔다.
+  function scenarioProductDeleteOk() {
+    callApi('POST', '/api/products', { name: '삭제용 테스트 상품', price: 5000, stock: 5 }).then(function (res) {
+      var created = res.body;
+      if (!created || !created.productId) {
+        logResult('DELETE', '(사전 생성 실패)', 'ERR', '삭제 대상 상품 생성에 실패했습니다.');
+        return;
+      }
+      lastDeletedProductId = created.productId;
+      callApi('DELETE', '/api/products/' + created.productId);
+    });
+  }
+
+  // 상품 삭제 - 실패 (이미 삭제된 id를 한 번 더 삭제 -> 409). "삭제 성공"을 먼저 눌러야 한다.
+  function scenarioProductDeleteFail() {
+    if (lastDeletedProductId === null) {
+      logResult('DELETE', '(사전 조건 없음)', 'ERR', '먼저 "상품 삭제 - 성공" 버튼을 눌러 삭제할 id를 만들어 주세요.');
+      return;
+    }
+    callApi('DELETE', '/api/products/' + lastDeletedProductId);
+  }
+
+  // 상품 구매 - 성공: 재고가 넉넉한(>1) 상품을 찾아 1개 구매 (-> 200)
+  function scenarioPurchaseOk() {
+    callApi('GET', '/api/products').then(function (res) {
+      var list = res.body;
+      var target = Array.isArray(list) ? list.find(function (p) { return p.stock > 1; }) : null;
+      if (!target) {
+        logResult('POST', '(사전조회 실패: 재고 있는 상품 없음)', 'ERR', '재고가 있는 상품을 찾지 못했습니다.');
+        return;
+      }
+      callApi('POST', '/api/products/' + target.productId + '/purchase', { quantity: 1 });
+    });
+  }
+
+  // 구매 실패 - 재고부족: stock <= 1 인 상품을 찾아 5개 구매 시도 (-> 409)
+  function scenarioPurchaseFailStock() {
+    callApi('GET', '/api/products').then(function (res) {
+      var list = res.body;
+      var target = Array.isArray(list) ? list.find(function (p) { return p.stock <= 1; }) : null;
+      if (!target) {
+        logResult('POST', '(사전조회 실패: 재고부족 상품 없음)', 'ERR', 'stock <= 1 인 상품을 찾지 못했습니다. (시드 데이터를 확인하세요)');
+        return;
+      }
+      callApi('POST', '/api/products/' + target.productId + '/purchase', { quantity: 5 });
+    });
+  }
+
+  // 구매 실패 - 서버오류: forceError=true 쿼리로 강제 500 유발
+  function scenarioPurchaseFailServer() {
+    callApi('GET', '/api/products').then(function (res) {
+      var list = res.body;
+      var target = Array.isArray(list) && list.length > 0 ? list[0] : null;
+      if (!target) {
+        logResult('POST', '(사전조회 실패: 상품 없음)', 'ERR', '구매를 시도할 상품이 없습니다.');
+        return;
+      }
+      callApi('POST', '/api/products/' + target.productId + '/purchase?forceError=true', { quantity: 1 });
+    });
+  }
+
+  // 부하 생성 - 랜덤 100건 (서버가 알아서 성공/실패를 섞어 로그를 생성한다)
+  function scenarioLoadTest() {
+    callApi('POST', '/api/load-test?count=100');
+  }
+
+  // 감사로그 조회 (MSSQL AuditLogs 테이블에서 직접 조회)
+  function scenarioAuditLogs() {
+    callApi('GET', '/api/audit-logs');
+  }
+</script>
+</body>
+</html>

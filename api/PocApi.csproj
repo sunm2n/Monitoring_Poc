@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    ★ 이 PoC 주장 4의 증거가 되는 파일이다.
+      여기에 OpenSearch / Elasticsearch / Fluent Bit 관련 패키지가 단 하나도 없다.
+      앱은 stdout 에 JSON 을 뱉을 뿐이고, 그걸 누가 어디로 가져가는지는 앱의 관심사가 아니다.
+      나중에 백엔드를 Loki 로 바꿔도 이 파일은 한 글자도 바뀌지 않는다.
+
+      검증:  grep -ri opensearch api/   → 결과 없음
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>PocApi</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 구조화 로깅. Console 싱크는 Serilog.AspNetCore 에 포함돼 있다. -->
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <!-- ExpressionTemplate — 출력 JSON 스키마를 우리가 원하는 모양 그대로 통제하기 위해 필요 -->
+    <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
+
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>
