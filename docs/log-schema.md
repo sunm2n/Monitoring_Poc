@@ -66,6 +66,25 @@
 | `error.message` | `text` | | 예외 메시지 |
 | `error.stack_trace` | `text` | | **FLS로 회사 관리자에게 숨기는 필드** |
 
+### 프레임워크가 자동으로 붙이는 부가 필드
+
+ASP.NET Core 가 요청 스코프에 넣는 값들이 그대로 따라 나온다. 스키마의 일부는 아니지만
+실제 문서에 존재하므로 여기 기록해 둔다.
+
+| 필드 | 예시 | 비고 |
+|---|---|---|
+| `RequestId` | `0HNNO523RDJTV:00000001` | 요청 식별자. `trace_id` 와 목적이 겹치지만 커넥션 단위로 더 촘촘하다 |
+| `RequestPath` | `/api/products/1/purchase` | `http.path` 와 중복 |
+| `ConnectionId` | `0HNNO523RDJTV` | Kestrel 커넥션 |
+| `SourceContext` | `Microsoft.Hosting.Lifetime` | 프레임워크 로그에만 붙는다 |
+
+인덱스 템플릿의 `dynamic_templates`가 이런 미정의 문자열 필드를 **`keyword`로** 떨어뜨린다.
+`text` + `keyword` 멀티필드로 자동 매핑되는 기본 동작을 막아둔 것인데,
+"템플릿에 반영하는 걸 깜빡한 필드가 조용히 DLS를 우회하는" 사고를 예방하기 위해서다.
+
+**정리하려면** `SchemaGuardEnricher`에 제거 목록을 추가하면 된다. PoC에서는
+"프레임워크가 뭘 끼워 넣는지"를 보여주는 편이 낫다고 판단해 남겨뒀다.
+
 ## 3. 설계 규칙 (어기면 PoC가 깨진다)
 
 | 규칙 | 이유 |
