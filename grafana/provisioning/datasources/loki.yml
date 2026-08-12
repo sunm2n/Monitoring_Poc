@@ -1,0 +1,32 @@
+# Grafana 데이터소스 자동 등록.
+# UI 에서 손으로 꽂는 단계를 없애기 위한 것으로, OpenSearch 쪽 setup-security.sh 와 같은 발상이다.
+#
+# ⚠️ 여기가 Loki 와 OpenSearch 의 권한 모델 차이가 드러나는 지점이다.
+#
+#   OpenSearch : 사용자 계정(company1_admin)에 DLS 필터가 붙는다.
+#                → 어떤 도구로 접근하든, 쿼리를 어떻게 조작하든 company1 문서만 나온다.
+#
+#   Loki       : 데이터소스는 그냥 "Loki 에 대한 연결"이다. 필터가 없다.
+#                Grafana OSS 는 데이터소스 단위 권한까지만 있고 행·필드 단위 권한이 없다
+#                (그건 Grafana Enterprise 기능이다).
+#                → 이 데이터소스에 접근할 수 있는 사용자는 **모든 회사의 로그를 볼 수 있다.**
+#                  대시보드에 company_id 필터를 걸어둘 수는 있지만, 그건 권한이 아니라
+#                  화면 설정일 뿐이라 사용자가 쿼리를 고치면 그대로 뚫린다.
+#
+# 자세한 비교는 docs/loki-comparison.md 참조.
+
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    jsonData:
+      # 라벨 기반 조회 시 Grafana 가 붙이는 기본 제한
+      maxLines: 1000
+      # Loki 가 단일 테넌트(auth_enabled: false)로 돌기 때문에
+      # 여기에 넣을 테넌트 헤더가 없다. 이것 자체가 PoC 의 관찰 결과다.
+      # httpHeaderName1: X-Scope-OrgID   ← 멀티테넌시를 켠다면 이런 식으로 넣는다
+    editable: true

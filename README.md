@@ -134,6 +134,29 @@ mssql ─────(healthy)────────────────�
 
 ---
 
+## Loki + Grafana 비교 (선택)
+
+같은 로그를 **두 백엔드로 동시에** 보내 나란히 비교할 수 있다.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.loki.yml up -d
+```
+
+Grafana 는 http://localhost:3000 (`admin` / `.env` 의 `GRAFANA_ADMIN_PASSWORD`).
+Loki 데이터소스는 프로비저닝으로 미리 꽂혀 있다.
+
+`api/` 는 한 글자도 바뀌지 않는다. Fluent Bit 설정 파일 하나와 compose 오버레이 하나가 전부다.
+
+실측 비교 결과는 **[docs/loki-comparison.md](docs/loki-comparison.md)** 에 있다. 요약하면:
+
+| | OpenSearch | Loki OSS |
+|---|:--:|:--:|
+| 회사별 격리 | ✅ | ❌ 인증 계층 자체가 없다 |
+| 필드 숨김 (FLS) | ✅ | ❌ 개념 없음 |
+| 메모리 | 1.29 GiB | **219 MiB** |
+
+기본 구성으로 돌아가려면 오버레이 없이 `docker compose up -d` 하면 된다.
+
 ## 검증
 
 검증 절차와 실측 결과는 **[docs/verification.md](docs/verification.md)** 에 있다.
@@ -152,6 +175,7 @@ mssql ─────(healthy)────────────────�
 .
 ├── docker-compose.yml            # 전체 스택. 기동 순서가 곧 설계
 ├── docker-compose.stdout.yml     # api 를 json-file 드라이버로 되돌리는 오버라이드
+├── docker-compose.loki.yml       # Loki + Grafana 를 병렬로 추가하는 오버레이
 ├── .env.example                  # 비밀번호 템플릿 (.env 는 커밋하지 않는다)
 │
 ├── api/                          # .NET 10 API — OpenSearch 의존성 0
@@ -166,7 +190,10 @@ mssql ─────(healthy)────────────────�
 │   └── wwwroot/index.html        # 버튼만 나열한 데모 화면
 │
 ├── db/init/01-seed.sql           # 스키마 + 시드 (스키마의 단일 진실)
-├── fluent-bit/                   # 수집 파이프라인 설정
+├── fluent-bit/
+│   ├── fluent-bit.conf           # 수집 · JSON 파싱 · OpenSearch 전송
+│   └── fluent-bit-loki.conf      # 위를 @INCLUDE 하고 Loki 출력만 덧붙임
+├── grafana/provisioning/         # Loki 데이터소스 자동 등록
 ├── opensearch/
 │   ├── 01-index-template.json    # company_id 를 keyword 로 고정
 │   ├── 02-ism-policy.json        # 7일 후 삭제
@@ -174,7 +201,8 @@ mssql ─────(healthy)────────────────�
 ├── scripts/verify.sh             # 주장 1~4 자동 검증
 └── docs/
     ├── log-schema.md             # ★ 로그 스키마 명세
-    └── verification.md           # 검증 절차와 실측 결과
+    ├── verification.md           # 검증 절차와 실측 결과
+    └── loki-comparison.md        # OpenSearch vs Loki 실측 비교
 ```
 
 ---
