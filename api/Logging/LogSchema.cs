@@ -10,6 +10,22 @@ namespace PocApi.Logging;
 public static class LogSchema
 {
     // ── 공통 필드 ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 로그 한 건의 고유 ID. 수집기가 이 값을 문서 _id 로 쓴다.
+    ///
+    /// ★ 왜 필요한가 (대용량 검증에서 실측된 사고):
+    ///   Fluent Bit 은 벌크 청크 단위로 재시도한다. 그런데 연결 수준 실패
+    ///   (http_do=-1 — 응답을 못 받은 경우)에는 서버가 이미 처리했는지 알 수 없다.
+    ///   실제로 OpenSearch 쪽 index_failed=0 / rejected=0 인데도, 즉 색인은 다 성공했는데도
+    ///   응답만 유실되어 청크가 재시도됐고, 문서 ID 가 자동 생성이라 전량이 두 번 색인됐다.
+    ///   (5,000건 생성 → 9,210건 색인, 서로 다른 seq 는 4,973개)
+    ///
+    ///   이 필드를 수집기의 Id_Key 로 지정하면 재시도가 덮어쓰기(upsert)가 되어 멱등해진다.
+    ///   로그 시스템은 at-least-once 전달이므로, 중복 제거 수단이 없으면 대용량에서 반드시 샌다.
+    /// </summary>
+    public const string LogId = "log_id";
+
     public const string Level = "level";
     public const string Service = "service";
     public const string Env = "env";

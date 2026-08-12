@@ -53,6 +53,7 @@ public static class SerilogSetup
             .Enrich.WithProperty(LogSchema.UserId, LogSchema.AnonymousUser)
             .Enrich.WithProperty(LogSchema.Event, LogSchema.Events.Internal)
 
+            .Enrich.With(new LogIdEnricher())
             .Enrich.With(new ErrorEnricher())
             .Enrich.With(new OutcomeEnricher())
 

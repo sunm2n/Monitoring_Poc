@@ -42,6 +42,7 @@ app.MapProductEndpoints();
 app.MapPurchaseEndpoints();
 app.MapAuditLogEndpoints();
 app.MapLoadTestEndpoints();
+app.MapVolumeTestEndpoints();
 
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 

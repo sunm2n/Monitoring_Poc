@@ -111,3 +111,19 @@ public sealed class OutcomeEnricher : ILogEventEnricher
         logEvent.AddPropertyIfAbsent(new LogEventProperty(LogSchema.Outcome, new ScalarValue(outcome)));
     }
 }
+
+/// <summary>
+/// 모든 로그에 고유 ID를 부여한다. 수집기가 이 값을 문서 _id 로 쓰면
+/// 재시도가 중복이 아니라 덮어쓰기가 된다. (근거는 LogSchema.LogId 주석 참조)
+///
+/// 백엔드 중립적인 개념이라는 점이 중요하다 — OpenSearch 를 위한 필드가 아니고,
+/// Loki 로 바꿔도 중복 판별에 그대로 쓸 수 있다.
+/// </summary>
+public sealed class LogIdEnricher : ILogEventEnricher
+{
+    public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
+    {
+        logEvent.AddPropertyIfAbsent(
+            new LogEventProperty(LogSchema.LogId, new ScalarValue(Guid.NewGuid().ToString("N"))));
+    }
+}

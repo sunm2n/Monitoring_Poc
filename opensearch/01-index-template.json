@@ -1,5 +1,7 @@
 {
-  "index_patterns": ["app-logs-*"],
+  "index_patterns": [
+    "app-logs-*"
+  ],
   "priority": 100,
   "template": {
     "settings": {
@@ -19,33 +21,82 @@
         }
       ],
       "properties": {
-        "@timestamp": { "type": "date" },
-        "level": { "type": "keyword" },
-        "service": { "type": "keyword" },
-        "env": { "type": "keyword" },
-        "company_id": { "type": "keyword" },
-        "user_id": { "type": "keyword" },
-        "trace_id": { "type": "keyword" },
-        "event": { "type": "keyword" },
-        "outcome": { "type": "keyword" },
-        "message": { "type": "text" },
+        "@timestamp": {
+          "type": "date"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "service": {
+          "type": "keyword"
+        },
+        "env": {
+          "type": "keyword"
+        },
+        "company_id": {
+          "type": "keyword"
+        },
+        "user_id": {
+          "type": "keyword"
+        },
+        "trace_id": {
+          "type": "keyword"
+        },
+        "event": {
+          "type": "keyword"
+        },
+        "outcome": {
+          "type": "keyword"
+        },
+        "message": {
+          "type": "text"
+        },
         "http": {
           "properties": {
-            "method": { "type": "keyword" },
-            "path": { "type": "keyword" },
-            "status_code": { "type": "integer" }
+            "method": {
+              "type": "keyword"
+            },
+            "path": {
+              "type": "keyword"
+            },
+            "status_code": {
+              "type": "integer"
+            }
           }
         },
-        "duration_ms": { "type": "long" },
-        "product_id": { "type": "integer" },
-        "quantity": { "type": "integer" },
-        "amount": { "type": "long" },
+        "duration_ms": {
+          "type": "long"
+        },
+        "product_id": {
+          "type": "integer"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "amount": {
+          "type": "long"
+        },
         "error": {
           "properties": {
-            "type": { "type": "keyword" },
-            "message": { "type": "text" },
-            "stack_trace": { "type": "text" }
+            "type": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text"
+            },
+            "stack_trace": {
+              "type": "text"
+            }
           }
+        },
+        "run_id": {
+          "type": "keyword"
+        },
+        "seq": {
+          "type": "long"
+        },
+        "log_id": {
+          "type": "keyword"
         }
       }
     }
