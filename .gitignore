@@ -1,0 +1,13 @@
+# .NET
+bin/
+obj/
+*.user
+
+# OS
+.DS_Store
+
+# 검증 스크린샷 산출물 (용량 큼, 필요시 개별 추가)
+docs/screenshots/*.png
+
+# 로컬 전용 오버라이드
+docker-compose.override.yml
