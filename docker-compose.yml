@@ -122,28 +122,6 @@ services:
       start_period: 45s
 
   # ───────────────────────────────────────────────────────────────────────────
-  # 스키마 + 시드 (1회성). 멱등이므로 매번 떠도 안전하다.
-  # ───────────────────────────────────────────────────────────────────────────
-  mssql-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: poc-mssql-init
-    platform: linux/amd64
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
-    volumes:
-      - ./db/init:/init:ro
-    entrypoint:
-      [
-        "/bin/bash",
-        "-c",
-        "/opt/mssql-tools18/bin/sqlcmd -C -S mssql -U sa -P \"$$MSSQL_SA_PASSWORD\" -i /init/01-seed.sql -b",
-      ]
-    restart: "no"
-
-  # ───────────────────────────────────────────────────────────────────────────
   # Fluent Bit — 수집기. Logstash 대신 쓴 이유는 리소스(1/10) 때문.
   # OpenSearch + Dashboards + MSSQL 이 이미 떠 있는 개발 PC에 JVM 을 하나 더 올릴 이유가 없다.
   # ───────────────────────────────────────────────────────────────────────────
@@ -171,13 +149,18 @@ services:
       context: ./api
     container_name: poc-api
     depends_on:
-      mssql-init:
-        condition: service_completed_successfully
+      mssql:
+        condition: service_healthy
       fluent-bit:
         condition: service_started
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__PocDb=Server=mssql,1433;Database=PocDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False
+      # 스키마/시드 스크립트. 소유권은 SQL 파일에 있고 API 는 실행기일 뿐이다.
+      # 별도 init 컨테이너를 쓰지 않는 이유는 api/Data/DatabaseInitializer.cs 주석 참조.
+      - SEED_SQL_PATH=/db-init/01-seed.sql
+    volumes:
+      - ./db/init:/db-init:ro
     ports:
       - "8080:8080"
     logging:

@@ -26,9 +26,10 @@ var app = builder.Build();
 // (이 로그가 회사 관리자 계정에 보이지 않는 것 자체가 DLS 가 동작한다는 증거이기도 하다)
 Log.Information("poc-api 를 기동합니다");
 
-// MSSQL 은 기동에 20~40초가 걸린다(에뮬레이션 환경에서는 더). compose 의 healthcheck 로
-// 이미 한 번 걸러지지만, 컨테이너 단독 실행 등을 대비해 앱에서도 한 번 더 기다린다. (함정 #6)
-await WaitForDatabaseAsync(app.Services);
+// 스키마 + 시드. 실행 주체가 왜 API 인지는 DatabaseInitializer 주석 참조.
+await DatabaseInitializer.RunAsync(
+    connectionString,
+    builder.Configuration["SEED_SQL_PATH"]);
 
 app.UseDefaultFiles();   // "/" → wwwroot/index.html
 app.UseStaticFiles();
@@ -45,33 +46,3 @@ app.MapLoadTestEndpoints();
 app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
-
-static async Task WaitForDatabaseAsync(IServiceProvider services)
-{
-    const int maxAttempts = 30;
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++)
-    {
-        using var scope = services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        try
-        {
-            if (await db.Database.CanConnectAsync())
-            {
-                Log.Information("데이터베이스에 연결했습니다 (시도 {Attempt}회)", attempt);
-                return;
-            }
-        }
-        catch (Exception ex) when (attempt < maxAttempts)
-        {
-            Log.Warning("데이터베이스 연결 대기 중 ({Attempt}/{Max}): {Reason}",
-                attempt, maxAttempts, ex.Message);
-        }
-
-        await Task.Delay(TimeSpan.FromSeconds(2));
-    }
-
-    throw new InvalidOperationException(
-        $"데이터베이스에 연결하지 못했습니다 ({maxAttempts}회 시도). MSSQL 컨테이너 상태를 확인하세요.");
-}
