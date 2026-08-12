@@ -72,6 +72,13 @@
 ### 기동
 
 ```bash
+cp .env.example .env
+```
+
+`.env` 를 열어 비밀번호를 채운다. **대문자 + 소문자 + 숫자 + 특수문자 포함 8자 이상**이어야 한다.
+복잡도를 못 맞추면 MSSQL 과 OpenSearch 컨테이너가 **에러 메시지 없이 조용히 죽는다.**
+
+```bash
 docker compose up -d
 ```
 
@@ -100,11 +107,12 @@ mssql ─────(healthy)────────────────�
 
 | 계정 | 비밀번호 | 볼 수 있는 것 |
 |---|---|---|
-| `admin` | `(.env 참조)` | 전부 (company1 + company2 + 스택트레이스) |
-| `company1_admin` | `(.env 참조)` | company1 문서만, 스택트레이스 필드 없음 |
-| `company2_admin` | `(.env 참조)` | company2 문서만, 스택트레이스 필드 없음 |
+| `admin` | `.env` 의 `OPENSEARCH_INITIAL_ADMIN_PASSWORD` | 전부 (company1 + company2 + 스택트레이스) |
+| `company1_admin` | `.env` 의 `COMPANY1_ADMIN_PASSWORD` | company1 문서만, 스택트레이스 필드 없음 |
+| `company2_admin` | `.env` 의 `COMPANY2_ADMIN_PASSWORD` | company2 문서만, 스택트레이스 필드 없음 |
 
-비밀번호는 [.env](.env)에 있다. 로컬 PoC 전용이라 저장소에 함께 커밋했다.
+회사 계정은 `opensearch/setup-security.sh` 가 `.env` 값으로 생성한다.
+`.env` 를 고쳤다면 `docker compose up os-setup` 을 다시 돌려야 반영된다.
 
 ### Dashboards 첫 설정
 
@@ -144,7 +152,7 @@ mssql ─────(healthy)────────────────�
 .
 ├── docker-compose.yml            # 전체 스택. 기동 순서가 곧 설계
 ├── docker-compose.stdout.yml     # api 를 json-file 드라이버로 되돌리는 오버라이드
-├── .env                          # 로컬 PoC 전용 비밀번호
+├── .env.example                  # 비밀번호 템플릿 (.env 는 커밋하지 않는다)
 │
 ├── api/                          # .NET 10 API — OpenSearch 의존성 0
 │   ├── Logging/
