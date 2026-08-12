@@ -31,8 +31,19 @@ INPUT · JSON 파싱 · 메타데이터 제거가 전부 같은 설정을 공유
 ### 앱은 아무것도 바뀌지 않았다
 
 ```bash
-$ git diff --stat HEAD~1 -- api/
-(변경 없음)
+# Loki 를 추가한 커밋(e077692)에서 api/ 변경 내역
+$ git show --stat e077692 -- api/
+(출력 없음)
+
+# 그 커밋이 실제로 건드린 파일 전부
+$ git show --stat e077692 --format="" --name-only
+.env.example
+README.md
+docker-compose.loki.yml
+docs/loki-comparison.md
+fluent-bit/fluent-bit-loki.conf
+fluent-bit/fluent-bit.conf
+grafana/provisioning/datasources/loki.yml
 ```
 
 이게 [주장 4](verification.md#주장-4--앱은-로그-백엔드를-몰라도-된다)의 실물 증명이다.
