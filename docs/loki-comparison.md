@@ -244,8 +244,8 @@ $ curl ... --data-urlencode 'query={service="poc-api"} | json | trace_id != ""'
 | `http.path` | `/api/products/12/purchase` 처럼 ID가 박히면 사실상 무한 |
 
 `company_id` 를 라벨에 넣을 수 있는 건 "고객사 수는 수백 규모"라는 사전 판단 덕분이다.
-**이 판단이 틀리면 운영 중에 Loki 가 무너진다.** OpenSearch 에는 이런 사전 판단이 필요 없었다 —
-그게 1.29 GiB 를 쓰는 대가다.
+**이 판단이 틀리면 운영 중에 Loki 가 무너진다.** OpenSearch 에는 이런 사전 판단이 필요 없다 —
+모든 필드를 색인하기 때문이고, 그 대가로 더 많은 메모리와 디스크를 쓴다.
 
 참고로 Loki 3.x 는 `service_name`, `detected_level` 라벨을 자동으로 추가한다.
 우리가 넣은 `service`, `level` 과 중복되므로 실제 운영에서는 한쪽을 정리하는 게 좋다.
